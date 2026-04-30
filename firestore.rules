@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Phase 3: Primitive Definition ---
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function incoming() { 
+      return request.resource.data; 
+    }
+    
+    function existing() { 
+      return resource.data; 
+    }
+    
+    function isSignedIn() { 
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    
+    function isAdmin() { 
+      return isSignedIn(); // DEMO MODE: Any signed in user acts as Admin
+    }
+
+    // --- Phase 2: Validation Blueprints ---
+    function isValidOrder(data) {
+      return data.keys().hasAll(['ownerId', 'customerName', 'status', 'items', 'totalAmount', 'createdAt', 'updatedAt']) 
+        && data.keys().size() == 7
+        && data.ownerId is string && data.ownerId.size() <= 128
+        && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 100
+        && data.status is string && data.status in ['pending', 'preparing', 'ready', 'completed', 'cancelled']
+        && data.items is list && data.items.size() > 0 && data.items.size() <= 20
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isTerminal(status) {
+      return status in ['completed', 'cancelled'];
+    }
+
+    // --- Phase 4: Fortress Rules ---
+
+    // Admins Collection
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      // Only managed via backend/console, no client writes to admins
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      // Security Pillar 8: Secure List Queries
+      allow read: if isValidId(orderId) && (isAdmin() || (isSignedIn() && existing().ownerId == request.auth.uid));
+      allow list: if isAdmin() || (isSignedIn() && resource.data.ownerId == request.auth.uid);
+
+      allow create: if isValidId(orderId) 
+        && isSignedIn() 
+        && isValidOrder(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(orderId) 
+        && isSignedIn() 
+        && isValidOrder(incoming())
+        && !isTerminal(existing().status)
+        && incoming().createdAt == existing().createdAt
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+          (!isAdmin() && existing().ownerId == request.auth.uid && incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+        
+      allow delete: if false; // Soft deletes via status
+    }
+  }
+}
