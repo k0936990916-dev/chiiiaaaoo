@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A customer's drink order",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "description": "The user ID of the customer who made the order" },
+        "customerName": { "type": "string", "description": "Name for the order pickup" },
+        "status": { "type": "string", "enum": ["pending", "preparing", "ready", "completed", "cancelled"] },
+        "items": { "type": "array", "description": "List of ordered items" },
+        "totalAmount": { "type": "number", "description": "Total price in dollars" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["ownerId", "customerName", "status", "items", "totalAmount", "createdAt", "updatedAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "List of admin uids",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Stores user orders"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Stores admin uids"
+    }
+  }
+}
