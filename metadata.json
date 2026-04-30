@@ -1,0 +1,6 @@
+{
+  "name": "可不可茶飲點單系統",
+  "description": "茶飲點單與後台管理系統，支援 Firebase",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
